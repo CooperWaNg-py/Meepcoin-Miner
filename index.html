@@ -5,84 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Meepcoin Miner</title>
     <style>
-        body {
-            font-family: 'Arial', sans-serif;
-            background-color: #121212;
-            color: #fff;
-            text-align: center;
-            padding: 20px;
-        }
-        h1 {
-            color: #FFD700;
-            font-size: 2.5em;
-        }
-        .container {
-            background: #1e1e1e;
-            padding: 20px;
-            border-radius: 15px;
-            display: inline-block;
-            box-shadow: 0px 0px 20px rgba(255, 215, 0, 0.5);
-            width: 90%;
-            max-width: 500px;
-        }
-        #balance {
-            font-size: 2em;
-            font-weight: bold;
-            color: #00ff00;
-            transition: 0.3s;
-        }
-        button {
-            background: #FFD700;
-            border: none;
-            padding: 15px 20px;
-            font-size: 1.2em;
-            cursor: pointer;
-            border-radius: 5px;
-            margin: 10px;
-            transition: 0.3s;
-            width: 45%;
-        }
-        button:hover {
-            background: #ffcc00;
-        }
-        #hash {
-            font-size: 0.9em;
-            word-wrap: break-word;
-            margin-top: 10px;
-            background: #292929;
-            padding: 10px;
-            border-radius: 5px;
-            display: inline-block;
-        }
-        #mining-indicator {
-            margin-top: 10px;
-            font-size: 1.2em;
-            color: #ff5733;
-            display: none;
-        }
-        #hashrate {
-            font-size: 1.2em;
-            color: #00bfff;
-            margin-top: 10px;
-        }
-        .highlight {
-            animation: glow 0.8s ease-in-out;
-        }
-        @keyframes glow {
-            0% { color: #fff; }
-            50% { color: #00ff00; }
-            100% { color: #fff; }
-        }
+        body { font-family: Arial, sans-serif; text-align: center; background: #121212; color: white; padding: 20px; }
+        h1 { color: #FFD700; }
+        .container { background: #1e1e1e; padding: 20px; border-radius: 10px; display: inline-block; }
+        #balance { font-size: 2em; color: #00ff00; }
+        button { background: #FFD700; border: none; padding: 10px; font-size: 1.2em; cursor: pointer; border-radius: 5px; margin: 10px; }
+        button:hover { background: #ffcc00; }
+        #mining-indicator { color: #ff5733; display: none; }
+        #hashrate { font-size: 1.2em; color: #00bfff; }
     </style>
     <script>
         let meepBalance = parseInt(localStorage.getItem("meepBalance")) || 0;
         let mining = false;
         let hashesPerSecond = 0;
-        let poolBalance = parseInt(localStorage.getItem("poolBalance")) || 0;
+        let startTime = Date.now();
+        let hashCount = 0;
 
         function updateBalance() {
             document.getElementById("balance").innerText = meepBalance;
-            document.getElementById("pool-balance").innerText = poolBalance;
         }
 
         async function sha1(message) {
@@ -92,40 +32,42 @@
             return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
         }
 
-        async function mineMeepcoin(pool = false) {
+        function containsMeepOrdered(hash) {
+            let index = 0;
+            const target = "meep";
+            for (let char of hash) {
+                if (char === target[index]) index++;
+                if (index === target.length) return true;
+            }
+            return false;
+        }
+
+        function formatHashrate(hashes) {
+            if (hashes >= 1e9) return (hashes / 1e9).toFixed(2) + " GH/s";
+            if (hashes >= 1e6) return (hashes / 1e6).toFixed(2) + " MH/s";
+            if (hashes >= 1e3) return (hashes / 1e3).toFixed(2) + " kH/s";
+            return hashes + " H/s";
+        }
+
+        async function mineMeepcoin() {
             mining = true;
             document.getElementById("mining-indicator").style.display = "block";
             document.getElementById("mine-btn").innerText = "Mining...";
 
-            let startTime = Date.now();
-            let hashCount = 0;
-
             while (mining) {
                 const randomString = Math.random().toString(36).substring(2);
                 const hash = await sha1(randomString);
-                document.getElementById("hash").innerText = hash;
                 hashCount++;
 
-                if (hash.includes("meep")) {
-                    if (pool) {
-                        poolBalance += 2;
-                        localStorage.setItem("poolBalance", poolBalance);
-                        document.getElementById("pool-balance").classList.add("highlight");
-                    } else {
-                        meepBalance += 2;
-                        localStorage.setItem("meepBalance", meepBalance);
-                        document.getElementById("balance").classList.add("highlight");
-                    }
+                if (containsMeepOrdered(hash)) {
+                    meepBalance += 2;
+                    localStorage.setItem("meepBalance", meepBalance);
                     updateBalance();
-                    setTimeout(() => {
-                        document.getElementById("balance").classList.remove("highlight");
-                        document.getElementById("pool-balance").classList.remove("highlight");
-                    }, 500);
                 }
 
                 if (Date.now() - startTime >= 1000) {
                     hashesPerSecond = hashCount;
-                    document.getElementById("hashrate").innerText = `⚡ Hashrate: ${hashesPerSecond} H/s`;
+                    document.getElementById("hashrate").innerText = `⚡ Hashrate: ${formatHashrate(hashesPerSecond)}`;
                     hashCount = 0;
                     startTime = Date.now();
                 }
@@ -139,18 +81,11 @@
             document.getElementById("hashrate").innerText = "⚡ Hashrate: 0 H/s";
         }
 
-        function resetBalance() {
+        function ResetBalance() {
             meepBalance = 0;
             localStorage.setItem("meepBalance", meepBalance);
             updateBalance();
-        }
-
-        function collectPool() {
-            meepBalance += poolBalance;
-            poolBalance = 0;
-            localStorage.setItem("meepBalance", meepBalance);
-            localStorage.setItem("poolBalance", poolBalance);
-            updateBalance();
+            console.log("Balance reset!");
         }
 
         window.onload = updateBalance;
@@ -159,16 +94,11 @@
 <body>
     <h1>⚡ Meepcoin Miner ⚡</h1>
     <div class="container">
-        <p>💰 Current Balance: <span id="balance">0</span> meep</p>
-        <p>⛏️ Pool Balance: <span id="pool-balance">0</span> meep</p>
-        <button id="mine-btn" onclick="mineMeepcoin()">Solo Mine</button>
-        <button onclick="mineMeepcoin(true)">Pool Mine</button>
+        <p>💰 Your Balance: <span id="balance">0</span> meep</p>
+        <button id="mine-btn" onclick="mineMeepcoin()">Start Mining</button>
         <button onclick="stopMining()">Stop Mining</button>
-        <button onclick="collectPool()">Collect Pool</button>
-        <button onclick="resetBalance()">Reset Balance</button>
         <p id="mining-indicator">⛏️ Mining in progress...</p>
         <p id="hashrate">⚡ Hashrate: 0 H/s</p>
-        <p>🔍 Last Hash: <span id="hash">None</span></p>
     </div>
 </body>
 </html>
