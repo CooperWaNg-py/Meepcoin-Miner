@@ -3,26 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meepcoin Miner</title>
+    <title>⚡ Meepcoin Miner ⚡</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; background: #121212; color: white; padding: 20px; }
-        h1 { color: #FFD700; }
-        .container { background: #1e1e1e; padding: 20px; border-radius: 10px; display: inline-block; }
-        #balance { font-size: 2em; color: #00ff00; }
-        button { background: #FFD700; border: none; padding: 10px; font-size: 1.2em; cursor: pointer; border-radius: 5px; margin: 10px; }
-        button:hover { background: #ffcc00; }
-        #mining-indicator { color: #ff5733; display: none; }
-        #hashrate { font-size: 1.2em; color: #00bfff; }
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Orbitron', sans-serif;
+            text-align: center;
+            background: #000;
+            color: #0ff;
+            padding: 20px;
+        }
+        h1 {
+            text-shadow: 0 0 15px #0ff, 0 0 30px #00f;
+        }
+        .container {
+            background: rgba(0, 0, 50, 0.95);
+            padding: 20px;
+            border-radius: 12px;
+            display: inline-block;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 0 20px #0ff;
+            margin-bottom: 20px;
+        }
+        button {
+            background: #111;
+            border: 2px solid #0ff;
+            padding: 10px;
+            font-size: 1.2em;
+            cursor: pointer;
+            border-radius: 5px;
+            color: white;
+            width: 100%;
+            margin-top: 10px;
+            box-shadow: 0 0 10px #0ff;
+        }
+        button:hover {
+            background: #222;
+        }
+        .stats {
+            font-size: 1.2em;
+            margin-top: 10px;
+        }
+        .dropdown {
+            display: none;
+            margin-top: 10px;
+        }
     </style>
     <script>
-        let meepBalance = parseInt(localStorage.getItem("meepBalance")) || 0;
         let mining = false;
-        let hashesPerSecond = 0;
-        let startTime = Date.now();
-        let hashCount = 0;
+        let hashCount = 0, totalHashes = 0;
+        let lastSuccessfulHash = localStorage.getItem("lastHash") || "meepcoin";
+        let startTime, hashesPerSecond = 0;
+        let clicks = parseInt(localStorage.getItem("clicks")) || 0;
+        let clickPower = parseInt(localStorage.getItem("clickPower")) || 1;
+        let autoClickers = parseInt(localStorage.getItem("autoClickers")) || 0;
 
         function updateBalance() {
-            document.getElementById("balance").innerText = meepBalance;
+            document.getElementById("balance").innerText = parseFloat(localStorage.getItem("meepBalance") || 0).toFixed(2);
+            document.getElementById("last-hash").innerText = lastSuccessfulHash;
+            document.getElementById("clicks").innerText = clicks;
+            updateUpgradePrices();
         }
 
         async function sha1(message) {
@@ -32,73 +74,145 @@
             return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
         }
 
-        function containsMeepOrdered(hash) {
-            let index = 0;
-            const target = "meep";
-            for (let char of hash) {
-                if (char === target[index]) index++;
-                if (index === target.length) return true;
-            }
-            return false;
+        function containsMeep(hash) {
+            return hash.includes("meep");
         }
 
-        function formatHashrate(hashes) {
-            if (hashes >= 1e9) return (hashes / 1e9).toFixed(2) + " GH/s";
-            if (hashes >= 1e6) return (hashes / 1e6).toFixed(2) + " MH/s";
-            if (hashes >= 1e3) return (hashes / 1e3).toFixed(2) + " kH/s";
-            return hashes + " H/s";
+        function containsMeepOrdered(hash) {
+            return /m.*?e.*?e.*?p/.test(hash);
+        }
+
+        function containsMeepLetters(hash) {
+            let count = 0;
+            for (let char of "meep") {
+                if (hash.includes(char)) count++;
+            }
+            return count >= 3;
         }
 
         async function mineMeepcoin() {
             mining = true;
-            document.getElementById("mining-indicator").style.display = "block";
+            startTime = Date.now();
             document.getElementById("mine-btn").innerText = "Mining...";
 
             while (mining) {
-                const randomString = Math.random().toString(36).substring(2);
-                const hash = await sha1(randomString);
+                const hash = await sha1(lastSuccessfulHash + Math.random().toString(36).substring(2));
                 hashCount++;
+                totalHashes++;
 
-                if (containsMeepOrdered(hash)) {
-                    meepBalance += 2;
-                    localStorage.setItem("meepBalance", meepBalance);
-                    updateBalance();
+                let balance = parseFloat(localStorage.getItem("meepBalance")) || 0;
+
+                if (hash === "meep") {
+                    balance += 250;
+                    lastSuccessfulHash = hash;
+                } else if (containsMeepOrdered(hash)) {
+                    balance += 10;
+                    lastSuccessfulHash = hash;
+                } else if (containsMeep(hash)) {
+                    balance += 0.1;
+                    lastSuccessfulHash = hash;
+                } else if (containsMeepLetters(hash)) {
+                    balance += 0.01;
                 }
 
-                if (Date.now() - startTime >= 1000) {
-                    hashesPerSecond = hashCount;
-                    document.getElementById("hashrate").innerText = `⚡ Hashrate: ${formatHashrate(hashesPerSecond)}`;
-                    hashCount = 0;
-                    startTime = Date.now();
+                localStorage.setItem("meepBalance", balance);
+                localStorage.setItem("lastHash", lastSuccessfulHash);
+                document.getElementById("last-hash").innerText = lastSuccessfulHash;
+                updateBalance();
+
+                if (hashCount % 100 === 0) {
+                    let elapsed = (Date.now() - startTime) / 1000;
+                    hashesPerSecond = (hashCount / elapsed).toFixed(2);
+                    let unit = "H/s";
+                    if (hashesPerSecond > 1000) {
+                        hashesPerSecond = (hashesPerSecond / 1000).toFixed(2);
+                        unit = "KH/s";
+                    }
+                    document.getElementById("hashrate").innerText = `${hashesPerSecond} ${unit}`;
                 }
             }
         }
 
         function stopMining() {
             mining = false;
-            document.getElementById("mining-indicator").style.display = "none";
             document.getElementById("mine-btn").innerText = "Start Mining";
-            document.getElementById("hashrate").innerText = "⚡ Hashrate: 0 H/s";
         }
 
-        function ResetBalance() {
-            meepBalance = 0;
-            localStorage.setItem("meepBalance", meepBalance);
-            updateBalance();
-            console.log("Balance reset!");
+        function toggleClickerGame() {
+            let game = document.getElementById("clicker-game");
+            game.style.display = game.style.display === "none" ? "block" : "none";
         }
+
+        function clickMeep() {
+            clicks += clickPower;
+            document.getElementById("clicks").innerText = clicks;
+            localStorage.setItem("clicks", clicks);
+        }
+
+        function getClickUpgradeCost() {
+            return Math.floor(20 * Math.pow(1.3, clickPower - 1));
+        }
+
+        function getAutoClickerCost() {
+            return Math.floor(50 * Math.pow(1.2, autoClickers));
+        }
+
+        function updateUpgradePrices() {
+            document.getElementById("clickUpgradeCost").innerText = getClickUpgradeCost();
+            document.getElementById("autoClickerCost").innerText = getAutoClickerCost();
+        }
+
+        function buyClickUpgrade() {
+            let cost = getClickUpgradeCost();
+            if (clicks >= cost) {
+                clicks -= cost;
+                clickPower++;
+                document.getElementById("clicks").innerText = clicks;
+                localStorage.setItem("clicks", clicks);
+                localStorage.setItem("clickPower", clickPower);
+                updateUpgradePrices();
+            }
+        }
+
+        function buyAutoClicker() {
+            let cost = getAutoClickerCost();
+            if (clicks >= cost) {
+                clicks -= cost;
+                autoClickers++;
+                document.getElementById("clicks").innerText = clicks;
+                localStorage.setItem("clicks", clicks);
+                localStorage.setItem("autoClickers", autoClickers);
+                updateUpgradePrices();
+            }
+        }
+
+        setInterval(() => {
+            clicks += autoClickers;
+            document.getElementById("clicks").innerText = clicks;
+            localStorage.setItem("clicks", clicks);
+        }, 1000);
 
         window.onload = updateBalance;
     </script>
 </head>
 <body>
     <h1>⚡ Meepcoin Miner ⚡</h1>
+
     <div class="container">
-        <p>💰 Your Balance: <span id="balance">0</span> meep</p>
         <button id="mine-btn" onclick="mineMeepcoin()">Start Mining</button>
         <button onclick="stopMining()">Stop Mining</button>
-        <p id="mining-indicator">⛏️ Mining in progress...</p>
-        <p id="hashrate">⚡ Hashrate: 0 H/s</p>
+        <p>Balance: <span id="balance">0.00</span> Meep</p>
+        <p>Last Hash: <span id="last-hash">None</span></p>
+        <p>Hashrate: <span id="hashrate">0 H/s</span></p>
+        <a href="wallet.html">Go to Wallet</a>
+    </div>
+
+    <button onclick="toggleClickerGame()">Clicker Game</button>
+    <div class="container dropdown" id="clicker-game">
+        <p>Clicks: <span id="clicks">0</span></p>
+        <button onclick="clickMeep()">🔘</button>
+        <button onclick="buyClickUpgrade()">Upgrade Click (<span id="clickUpgradeCost">20</span> clicks)</button>
+        <button onclick="buyAutoClicker()">Buy Auto Clicker (<span id="autoClickerCost">50</span> clicks)</button>
     </div>
 </body>
 </html>
